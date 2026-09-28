@@ -1,0 +1,2 @@
+# This directory holds the growing log file monitored by the backend.
+# The simulator writes here; the tailer reads from here.
