@@ -6,3 +6,4 @@ python-dotenv
 pytest
 httpx
 websockets
+boto3
