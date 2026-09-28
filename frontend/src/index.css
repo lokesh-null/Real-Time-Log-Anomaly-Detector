@@ -958,3 +958,239 @@ body {
   color: var(--cream);
 }
 
+/* ============================================================
+   Presenter Guide Modal Styles
+   ============================================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(1, 7, 54, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.guide-modal {
+  background: #0d1c42;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 820px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: modal-pop 0.25s ease-out;
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.guide-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(1, 7, 54, 0.5);
+}
+
+.guide-modal__badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  background: var(--blue);
+  color: var(--cream);
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+.guide-modal__header h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.guide-modal__close {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.guide-modal__close:hover {
+  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.guide-modal__content {
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.guide-card {
+  background: rgba(34, 57, 111, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 14px 18px;
+}
+
+.guide-card--pitch {
+  border-left: 4px solid var(--green);
+}
+
+.guide-card--pitch h3 {
+  font-size: 0.85rem;
+  color: var(--green);
+  margin-bottom: 6px;
+}
+
+.guide-card--pitch p {
+  font-size: 0.85rem;
+  color: var(--text-1);
+  line-height: 1.4;
+}
+
+.guide-section-title {
+  font-size: 0.9rem;
+  color: var(--cream);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.guide-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.guide-step-card {
+  background: rgba(1, 7, 54, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guide-step-num {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--cream);
+  opacity: 0.7;
+}
+
+.guide-step-card h4 {
+  font-size: 0.95rem;
+  color: var(--text-1);
+}
+
+.guide-step-card p {
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+
+.guide-step-expected {
+  font-size: 0.75rem;
+  background: rgba(34, 57, 111, 0.3);
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #bfdbfe;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.guide-card--ports h4 {
+  font-size: 0.85rem;
+  color: var(--text-1);
+  margin-bottom: 10px;
+}
+
+.guide-ports-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.guide-port-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+.port-badge {
+  background: var(--blue);
+  color: var(--cream);
+  font-weight: 700;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.guide-modal__footer {
+  padding: 14px 24px;
+  background: rgba(1, 7, 54, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.guide-btn-primary {
+  background: var(--green);
+  color: #010736;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.guide-btn-primary:hover {
+  background: #38d394;
+  transform: translateY(-1px);
+}
+
+.topbar-guide-btn {
+  background: rgba(34, 57, 111, 0.5);
+  border: 1px solid rgba(252, 241, 208, 0.3);
+  color: var(--cream);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.topbar-guide-btn:hover {
+  background: var(--blue);
+  border-color: var(--cream);
+  transform: translateY(-1px);
+}
+
+

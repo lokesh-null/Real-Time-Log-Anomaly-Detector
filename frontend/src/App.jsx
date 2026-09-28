@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { useDataStream } from "./hooks/useDataStream";
 import { topbarBadge } from "./utils";
 import { IconDashboard, IconChart, IconAlert, IconTerminal, IconHealth } from "./components/Icons";
+import DemoGuideModal from "./components/DemoGuideModal";
 import DashboardPage from "./pages/DashboardPage";
 import ChartPage from "./pages/ChartPage";
 import AlertsPage from "./pages/AlertsPage";
@@ -24,6 +25,7 @@ const PAGES = [
 
 export default function App() {
   const [activePage, setActivePage] = useState("dashboard");
+  const [guideOpen, setGuideOpen] = useState(false);
   const { connState, latest, chartData, alerts, logs, recovered, useMock, toggleMock, stats } = useDataStream();
 
   // Live clock
@@ -41,6 +43,9 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {/* ── Presenter Guide Modal ── */}
+      <DemoGuideModal isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
+
       {/* ── Sidebar ── */}
       <aside className="sidebar" role="navigation" aria-label="Main navigation">
         <div className="sidebar-brand">
@@ -81,6 +86,13 @@ export default function App() {
             {PAGES.find((p) => p.id === activePage)?.label}
           </span>
           <div className="topbar-right">
+            <button 
+              className="topbar-guide-btn" 
+              onClick={() => setGuideOpen(true)}
+              title="Open quick manual on how to demonstrate to judges"
+            >
+              📖 Demo Manual
+            </button>
             <div className={`topbar-badge ${statusBadge}`} id="system-status-badge">
               <span className={`sev-dot sev-dot--${statusText.toLowerCase()}`} />
               {statusText}
@@ -113,3 +125,4 @@ export default function App() {
 function fmtClock() {
   return new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
+
