@@ -7,21 +7,24 @@
 import { useState, useEffect } from "react";
 import { useDataStream } from "./hooks/useDataStream";
 import { topbarBadge } from "./utils";
-import { IconDashboard, IconChart, IconAlert, IconTerminal, IconHealth } from "./components/Icons";
+import { IconDashboard, IconChart, IconAlert, IconTerminal, IconHealth, IconCart } from "./components/Icons";
 import DemoGuideModal from "./components/DemoGuideModal";
 import DashboardPage from "./pages/DashboardPage";
 import ChartPage from "./pages/ChartPage";
 import AlertsPage from "./pages/AlertsPage";
 import ConsolePage from "./pages/ConsolePage";
 import HealthPage from "./pages/HealthPage";
+import StorefrontPage from "./pages/StorefrontPage";
 
 const PAGES = [
   { id: "dashboard", label: "Overview", icon: IconDashboard },
+  { id: "store", label: "Storefront (Demo)", icon: IconCart },
   { id: "chart", label: "Live Chart", icon: IconChart },
   { id: "alerts", label: "Alerts", icon: IconAlert },
   { id: "console", label: "Log Console", icon: IconTerminal },
   { id: "health", label: "System Health", icon: IconHealth },
 ];
+
 
 export default function App() {
   const [activePage, setActivePage] = useState("dashboard");
@@ -105,6 +108,9 @@ export default function App() {
         {activePage === "dashboard" && (
           <DashboardPage latest={latest} chartData={chartData} alerts={alerts} recovered={recovered} useMock={useMock} />
         )}
+        {activePage === "store" && (
+          <StorefrontPage stats={stats} />
+        )}
         {activePage === "chart" && (
           <ChartPage latest={latest} chartData={chartData} stats={stats} />
         )}
@@ -117,6 +123,7 @@ export default function App() {
         {activePage === "health" && (
           <HealthPage latest={latest} alerts={alerts} stats={stats} chartData={chartData} />
         )}
+
       </div>
     </div>
   );
