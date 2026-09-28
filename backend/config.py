@@ -5,7 +5,15 @@ class Settings(BaseSettings):
     poll_interval: float = 0.2
     aws_region: str = "us-east-1"
     sns_topic_arn: str = ""
+    
+    # Direct Email / SMTP alert fallback
+    alert_email_to: str = ""
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
 
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
+

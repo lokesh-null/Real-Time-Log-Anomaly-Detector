@@ -18,7 +18,6 @@ import StorefrontPage from "./pages/StorefrontPage";
 
 const PAGES = [
   { id: "dashboard", label: "Overview", icon: IconDashboard },
-  { id: "store", label: "Storefront (Demo)", icon: IconCart },
   { id: "chart", label: "Live Chart", icon: IconChart },
   { id: "alerts", label: "Alerts", icon: IconAlert },
   { id: "console", label: "Log Console", icon: IconTerminal },
