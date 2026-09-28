@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     poll_interval: float = 0.2
     aws_region: str = "us-east-1"
     sns_topic_arn: str = ""
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
     
     # Direct Email / SMTP alert fallback
     alert_email_to: str = ""

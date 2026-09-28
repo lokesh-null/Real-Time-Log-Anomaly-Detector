@@ -74,9 +74,16 @@ def publish_alert(alert: AnomalyResult):
         return False
 
     try:
+        client_kwargs = {
+            "region_name": settings.aws_region
+        }
+        if settings.aws_access_key_id and settings.aws_secret_access_key:
+            client_kwargs["aws_access_key_id"] = settings.aws_access_key_id
+            client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+
         client = boto3.client(
             "sns",
-            region_name=settings.aws_region
+            **client_kwargs
         )
 
         message = {
