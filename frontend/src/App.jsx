@@ -1,205 +1,115 @@
 /**
- * App.jsx — Log Sentinel Dashboard
- *
- * Single-page real-time monitoring dashboard.
- * Receives data from one shared source (WebSocket or mock).
+ * App.jsx — Log Sentinel
+ * Sidebar shell with page routing. No scrolling — full viewport pages.
  * Does NOT implement anomaly detection — only visualizes backend results.
  */
 
+import { useState, useEffect } from "react";
 import { useDataStream } from "./hooks/useDataStream";
-import StatusCard from "./components/StatusCard";
-import ErrorRateChart from "./components/ErrorRateChart";
-import AlertFeed from "./components/AlertFeed";
+import { topbarBadge } from "./utils";
+import { IconDashboard, IconChart, IconAlert, IconTerminal, IconHealth } from "./components/Icons";
+import DashboardPage from "./pages/DashboardPage";
+import ChartPage from "./pages/ChartPage";
+import AlertsPage from "./pages/AlertsPage";
+import ConsolePage from "./pages/ConsolePage";
+import HealthPage from "./pages/HealthPage";
 
-// ── Severity → CSS class mapping ──
-function severityToClass(severity) {
-  if (!severity) return "waiting";
-  const map = {
-    NORMAL: "normal",
-    WARNING: "warning",
-    HIGH: "high",
-    CRITICAL: "critical",
-    RECOVERED: "recovered",
-  };
-  return map[severity] || "waiting";
-}
-
-// ── Connection label ──
-function connectionLabel(state) {
-  switch (state) {
-    case "connected":
-      return "LIVE";
-    case "mock":
-      return "MOCK";
-    case "disconnected":
-    default:
-      return "DISCONNECTED";
-  }
-}
+const PAGES = [
+  { id: "dashboard", label: "Overview", icon: IconDashboard },
+  { id: "chart", label: "Live Chart", icon: IconChart },
+  { id: "alerts", label: "Alerts", icon: IconAlert },
+  { id: "console", label: "Log Console", icon: IconTerminal },
+  { id: "health", label: "System Health", icon: IconHealth },
+];
 
 export default function App() {
-  const {
-    connectionState,
-    latestEvent,
-    chartData,
-    alerts,
-    isRecovered,
-    useMock,
-    toggleMock,
-  } = useDataStream();
+  const [activePage, setActivePage] = useState("dashboard");
+  const { connState, latest, chartData, alerts, logs, recovered, useMock, toggleMock, stats } = useDataStream();
 
-  // Current values (or waiting state)
-  const hasData = latestEvent !== null;
-  const errorRateDisplay = hasData
-    ? `${(latestEvent.error_rate * 100).toFixed(1)}%`
-    : "—";
-  const baselineDisplay = hasData
-    ? `${(latestEvent.baseline * 100).toFixed(1)}%`
-    : "—";
-  const deviationDisplay = hasData
-    ? `${latestEvent.deviation.toFixed(1)}σ`
-    : "—";
-  const statusDisplay = hasData ? latestEvent.severity : "WAITING";
-  const severityClass = hasData
-    ? severityToClass(latestEvent.severity)
-    : "waiting";
+  // Live clock
+  const [clock, setClock] = useState(fmtClock());
+  useEffect(() => {
+    const t = setInterval(() => setClock(fmtClock()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
-  const errorRateSub = hasData
-    ? `${latestEvent.errors} errors / ${latestEvent.total_logs} total`
-    : "Waiting for live data";
+  const has = latest !== null;
+  const connLabel = connState === "connected" ? "LIVE" : connState === "mock" ? "MOCK" : "DISCONNECTED";
+  const connClass = connState === "connected" ? "live" : connState === "mock" ? "mock" : "off";
+  const statusBadge = has ? topbarBadge(latest.severity) : "ok";
+  const statusText = has ? latest.severity : "WAITING";
 
   return (
-    <div className="app-container">
-      {/* ── Header ── */}
-      <header className="header" role="banner">
-        <div className="header-left">
-          <h1 className="header-title" id="app-title">LOG SENTINEL</h1>
-          <p className="header-subtitle">Real-time anomaly monitoring</p>
+    <div className="app-shell">
+      {/* ── Sidebar ── */}
+      <aside className="sidebar" role="navigation" aria-label="Main navigation">
+        <div className="sidebar-brand">
+          <h1>LOG SENTINEL</h1>
+          <p>Anomaly Monitor</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <button
-            onClick={toggleMock}
-            style={{
-              background: "transparent",
-              border: "1px solid var(--border-light)",
-              color: "var(--text-secondary)",
-              padding: "4px 14px",
-              borderRadius: "16px",
-              fontSize: "0.72rem",
-              cursor: "pointer",
-              letterSpacing: "0.04em",
-              fontFamily: "inherit",
-              transition: "border-color 0.2s",
-            }}
-            aria-label={useMock ? "Switch to live WebSocket" : "Switch to mock data"}
-            id="toggle-mock-btn"
-          >
+
+        <nav className="sidebar-nav">
+          {PAGES.map((p) => (
+            <button
+              key={p.id}
+              className={`sidebar-link ${activePage === p.id ? "active" : ""}`}
+              onClick={() => setActivePage(p.id)}
+              aria-current={activePage === p.id ? "page" : undefined}
+              id={`nav-${p.id}`}
+            >
+              <p.icon />
+              <span>{p.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-conn">
+            <span className={`sidebar-dot ${connClass}`} />
+            <span>{connLabel}</span>
+          </div>
+          <button className="sidebar-toggle" onClick={toggleMock} id="toggle-mock-btn">
             {useMock ? "GO LIVE" : "USE MOCK"}
           </button>
-          <div
-            className={`connection-status ${connectionState}`}
-            role="status"
-            aria-label={`Connection: ${connectionLabel(connectionState)}`}
-            id="connection-status"
-          >
-            <span className="connection-dot" aria-hidden="true" />
-            <span>{connectionLabel(connectionState)}</span>
-          </div>
         </div>
-      </header>
+      </aside>
 
-      {/* ── Mock mode banner ── */}
-      {useMock && (
-        <div className="mock-banner" role="status" id="mock-banner">
-          ⚡ Mock mode — generating simulated anomaly data
-        </div>
-      )}
-
-      {/* ── Recovery banner ── */}
-      {isRecovered && (
-        <div className="recovery-banner" role="alert" id="recovery-banner">
-          <span className="recovery-banner__icon" aria-hidden="true">🟢</span>
-          <div>
-            <div className="recovery-banner__text">SYSTEM RECOVERED</div>
-            <div className="recovery-banner__sub">
-              System returned to normal operating range
+      {/* ── Main Area ── */}
+      <div className="main-content">
+        <header className="topbar" role="banner">
+          <span className="topbar-title">
+            {PAGES.find((p) => p.id === activePage)?.label}
+          </span>
+          <div className="topbar-right">
+            <div className={`topbar-badge ${statusBadge}`} id="system-status-badge">
+              <span className={`sev-dot sev-dot--${statusText.toLowerCase()}`} />
+              {statusText}
             </div>
+            <span className="topbar-clock">{clock}</span>
           </div>
-        </div>
-      )}
+        </header>
 
-      {/* ── Anomaly banner (CRITICAL) ── */}
-      {hasData && latestEvent.severity === "CRITICAL" && latestEvent.is_anomaly && (
-        <div className="anomaly-banner" role="alert" id="anomaly-banner">
-          <span className="anomaly-banner__icon" aria-hidden="true">🚨</span>
-          <div>
-            <div className="anomaly-banner__text">CRITICAL ANOMALY DETECTED</div>
-            <div className="anomaly-banner__sub">
-              Error rate: {(latestEvent.error_rate * 100).toFixed(1)}% — Baseline: {(latestEvent.baseline * 100).toFixed(1)}% — Deviation: {latestEvent.deviation.toFixed(1)}σ
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Metrics ── */}
-      <div className="metrics-grid" role="region" aria-label="System metrics">
-        <StatusCard
-          label="Error Rate"
-          value={errorRateDisplay}
-          sub={errorRateSub}
-          severityClass={
-            hasData && latestEvent.error_rate > 0.15
-              ? severityClass
-              : undefined
-          }
-        />
-        <StatusCard
-          label="Baseline"
-          value={baselineDisplay}
-          sub="Rolling average"
-        />
-        <StatusCard
-          label="Deviation"
-          value={deviationDisplay}
-          sub="Z-score from baseline"
-          severityClass={
-            hasData && latestEvent.deviation > 2 ? severityClass : undefined
-          }
-        />
-        <StatusCard
-          label="System Status"
-          value={statusDisplay}
-          sub={hasData ? latestEvent.message : "Awaiting first event"}
-          severityClass={severityClass}
-        />
-      </div>
-
-      {/* ── Chart + Alerts grid ── */}
-      <div className="dashboard-grid">
-        <div className="section">
-          <div className="section__header">
-            <h2 className="section__title" id="chart-section-title">Error Rate vs Baseline</h2>
-            <span className="section__badge">
-              {chartData.length > 0
-                ? `${chartData.length} data points`
-                : "No data"}
-            </span>
-          </div>
-          <ErrorRateChart data={chartData} />
-        </div>
-
-        <div className="section">
-          <div className="section__header">
-            <h2 className="section__title" id="alerts-section-title">Alert Feed</h2>
-            <span className="section__badge">
-              {alerts.length > 0
-                ? `${alerts.length} alert${alerts.length !== 1 ? "s" : ""}`
-                : "No alerts"}
-            </span>
-          </div>
-          <AlertFeed alerts={alerts} />
-        </div>
+        {/* ── Pages ── */}
+        {activePage === "dashboard" && (
+          <DashboardPage latest={latest} chartData={chartData} alerts={alerts} recovered={recovered} useMock={useMock} />
+        )}
+        {activePage === "chart" && (
+          <ChartPage latest={latest} chartData={chartData} stats={stats} />
+        )}
+        {activePage === "alerts" && (
+          <AlertsPage alerts={alerts} stats={stats} latest={latest} />
+        )}
+        {activePage === "console" && (
+          <ConsolePage logs={logs} latest={latest} stats={stats} />
+        )}
+        {activePage === "health" && (
+          <HealthPage latest={latest} alerts={alerts} stats={stats} chartData={chartData} />
+        )}
       </div>
     </div>
   );
+}
+
+function fmtClock() {
+  return new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }

@@ -1,231 +1,128 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getNextMockEvent } from "../mockData";
+import { getNextMockEvent, getNextMockLog } from "../mockData";
 
 const WS_URL = "ws://localhost:8000/ws";
-const RECONNECT_BASE_DELAY = 1000;
-const RECONNECT_MAX_DELAY = 16000;
-const MAX_CHART_POINTS = 80;
-const MAX_ALERTS = 50;
-const MOCK_INTERVAL_MS = 1500;
+const RECONNECT_BASE = 1000;
+const RECONNECT_MAX = 16000;
+const MAX_CHART = 80;
+const MAX_ALERTS = 100;
+const MAX_LOGS = 200;
+const MOCK_INTERVAL = 1500;
+const MOCK_LOG_INTERVAL = 600;
 
-/**
- * Custom hook for the entire data layer.
- * Connects to the backend WebSocket or falls back to mock data.
- *
- * Returns: { connectionState, latestEvent, chartData, alerts, isRecovered, useMock, toggleMock }
- */
 export function useDataStream() {
-  // "connected" | "disconnected" | "mock"
-  const [connectionState, setConnectionState] = useState("disconnected");
-  const [latestEvent, setLatestEvent] = useState(null);
+  const [connState, setConnState] = useState("disconnected");
+  const [latest, setLatest] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [isRecovered, setIsRecovered] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [recovered, setRecovered] = useState(false);
   const [useMock, setUseMock] = useState(false);
+  const [stats, setStats] = useState({ totalEvents: 0, totalAlerts: 0, peakRate: 0, uptimeStart: Date.now() });
 
   const wsRef = useRef(null);
-  const reconnectDelayRef = useRef(RECONNECT_BASE_DELAY);
-  const reconnectTimerRef = useRef(null);
-  const mockTimerRef = useRef(null);
-  const prevSeverityRef = useRef(null);
-  const alertIdRef = useRef(0);
+  const delayRef = useRef(RECONNECT_BASE);
+  const reconRef = useRef(null);
+  const mockRef = useRef(null);
+  const mockLogRef = useRef(null);
+  const prevSevRef = useRef(null);
+  const aidRef = useRef(0);
 
-  // ── Process an incoming event (from WS or mock) ──
-  const processEvent = useCallback((event) => {
+  const processEvent = useCallback((ev) => {
     try {
-      // Validate minimal required fields
-      if (
-        event.error_rate === undefined ||
-        event.severity === undefined ||
-        event.timestamp === undefined
-      ) {
-        console.warn("[LogSentinel] Malformed event, skipping:", event);
-        return;
+      if (ev.error_rate === undefined || ev.severity === undefined || ev.timestamp === undefined) return;
+
+      setLatest(ev);
+      setStats((s) => ({
+        ...s,
+        totalEvents: s.totalEvents + 1,
+        totalAlerts: s.totalAlerts + (ev.is_anomaly ? 1 : 0),
+        peakRate: Math.max(s.peakRate, ev.error_rate),
+      }));
+
+      const prev = prevSevRef.current;
+      if (prev && ["CRITICAL", "HIGH", "WARNING"].includes(prev) && ev.severity === "NORMAL" && !ev.is_anomaly) {
+        setRecovered(true);
+        setTimeout(() => setRecovered(false), 8000);
+      } else if (ev.is_anomaly) {
+        setRecovered(false);
       }
+      prevSevRef.current = ev.severity;
 
-      setLatestEvent(event);
+      const pt = { time: fmtTime(ev.timestamp), error_rate: +(ev.error_rate * 100).toFixed(1), baseline: +(ev.baseline * 100).toFixed(1) };
+      setChartData((p) => { const n = [...p, pt]; return n.length > MAX_CHART ? n.slice(-MAX_CHART) : n; });
 
-      // Detect recovery: was anomaly, now normal
-      const prev = prevSeverityRef.current;
-      if (
-        prev &&
-        ["CRITICAL", "HIGH", "WARNING"].includes(prev) &&
-        event.severity === "NORMAL" &&
-        !event.is_anomaly
-      ) {
-        setIsRecovered(true);
-        // Clear recovery banner after 8 seconds
-        setTimeout(() => setIsRecovered(false), 8000);
-      } else if (event.is_anomaly) {
-        setIsRecovered(false);
+      if (ev.is_anomaly || (prev && ["CRITICAL", "HIGH", "WARNING"].includes(prev) && ev.severity === "NORMAL")) {
+        aidRef.current++;
+        const a = { id: aidRef.current, timestamp: ev.timestamp, severity: ev.is_anomaly ? ev.severity : "RECOVERED", message: ev.message, error_rate: ev.error_rate, deviation: ev.deviation };
+        setAlerts((p) => { const n = [a, ...p]; return n.length > MAX_ALERTS ? n.slice(0, MAX_ALERTS) : n; });
       }
-      prevSeverityRef.current = event.severity;
-
-      // Chart data — keep bounded
-      const chartPoint = {
-        time: formatTime(event.timestamp),
-        error_rate: +(event.error_rate * 100).toFixed(1),
-        baseline: +(event.baseline * 100).toFixed(1),
-      };
-      setChartData((prev) => {
-        const next = [...prev, chartPoint];
-        return next.length > MAX_CHART_POINTS
-          ? next.slice(next.length - MAX_CHART_POINTS)
-          : next;
-      });
-
-      // Alerts — only anomalies + recovery
-      if (event.is_anomaly || (prev && ["CRITICAL", "HIGH", "WARNING"].includes(prev) && event.severity === "NORMAL")) {
-        alertIdRef.current += 1;
-        const alert = {
-          id: alertIdRef.current,
-          timestamp: event.timestamp,
-          severity: event.is_anomaly ? event.severity : "RECOVERED",
-          message: event.message,
-          error_rate: event.error_rate,
-          deviation: event.deviation,
-        };
-        setAlerts((prev) => {
-          const next = [alert, ...prev];
-          return next.length > MAX_ALERTS ? next.slice(0, MAX_ALERTS) : next;
-        });
-      }
-    } catch (err) {
-      console.error("[LogSentinel] Error processing event:", err);
+    } catch (e) {
+      console.error("[LogSentinel]", e);
     }
   }, []);
 
-  // ── WebSocket connection ──
+  const processLog = useCallback((log) => {
+    setLogs((p) => { const n = [...p, { ...log, id: Date.now() + Math.random() }]; return n.length > MAX_LOGS ? n.slice(-MAX_LOGS) : n; });
+  }, []);
+
   const connectWs = useCallback(() => {
     if (useMock) return;
-
-    // Clean up existing
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-
+    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     try {
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
-
-      ws.onopen = () => {
-        setConnectionState("connected");
-        reconnectDelayRef.current = RECONNECT_BASE_DELAY;
-      };
-
-      ws.onmessage = (event) => {
+      ws.onopen = () => { setConnState("connected"); delayRef.current = RECONNECT_BASE; };
+      ws.onmessage = (e) => {
         try {
-          const data = JSON.parse(event.data);
-          processEvent(data);
-        } catch (err) {
-          console.warn("[LogSentinel] Invalid JSON from WebSocket:", err);
-        }
+          const d = JSON.parse(e.data);
+          processEvent(d);
+          // Also create a synthetic log entry from the event
+          processLog({ timestamp: d.timestamp, level: d.is_anomaly ? d.severity : "INFO", message: d.message });
+        } catch (err) { /* malformed */ }
       };
+      ws.onclose = () => { setConnState("disconnected"); wsRef.current = null; schedRecon(); };
+      ws.onerror = () => {};
+    } catch { setConnState("disconnected"); schedRecon(); }
+  }, [useMock, processEvent, processLog]);
 
-      ws.onclose = () => {
-        setConnectionState("disconnected");
-        wsRef.current = null;
-        scheduleReconnect();
-      };
-
-      ws.onerror = () => {
-        // onclose will fire after this
-      };
-    } catch (err) {
-      setConnectionState("disconnected");
-      scheduleReconnect();
-    }
-  }, [useMock, processEvent]);
-
-  const scheduleReconnect = useCallback(() => {
-    if (reconnectTimerRef.current) return;
-    const delay = reconnectDelayRef.current;
-    reconnectTimerRef.current = setTimeout(() => {
-      reconnectTimerRef.current = null;
-      reconnectDelayRef.current = Math.min(
-        delay * 2,
-        RECONNECT_MAX_DELAY
-      );
-      connectWs();
-    }, delay);
+  const schedRecon = useCallback(() => {
+    if (reconRef.current) return;
+    const d = delayRef.current;
+    reconRef.current = setTimeout(() => { reconRef.current = null; delayRef.current = Math.min(d * 2, RECONNECT_MAX); connectWs(); }, d);
   }, [connectWs]);
 
-  // ── Mock data mode ──
   useEffect(() => {
     if (useMock) {
-      // Disconnect WS if active
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-
-      setConnectionState("mock");
-
-      mockTimerRef.current = setInterval(() => {
-        const event = getNextMockEvent();
-        processEvent(event);
-      }, MOCK_INTERVAL_MS);
-
+      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+      if (reconRef.current) { clearTimeout(reconRef.current); reconRef.current = null; }
+      setConnState("mock");
+      mockRef.current = setInterval(() => processEvent(getNextMockEvent()), MOCK_INTERVAL);
+      mockLogRef.current = setInterval(() => processLog(getNextMockLog()), MOCK_LOG_INTERVAL);
       return () => {
-        if (mockTimerRef.current) {
-          clearInterval(mockTimerRef.current);
-          mockTimerRef.current = null;
-        }
+        if (mockRef.current) clearInterval(mockRef.current);
+        if (mockLogRef.current) clearInterval(mockLogRef.current);
       };
     } else {
-      // Stop mock and try WS
-      if (mockTimerRef.current) {
-        clearInterval(mockTimerRef.current);
-        mockTimerRef.current = null;
-      }
+      if (mockRef.current) clearInterval(mockRef.current);
+      if (mockLogRef.current) clearInterval(mockLogRef.current);
       connectWs();
     }
-
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
+      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+      if (reconRef.current) { clearTimeout(reconRef.current); reconRef.current = null; }
     };
-  }, [useMock, connectWs, processEvent]);
+  }, [useMock, connectWs, processEvent, processLog]);
 
-  const toggleMock = useCallback(() => {
-    setUseMock((prev) => !prev);
-  }, []);
+  const toggleMock = useCallback(() => setUseMock((p) => !p), []);
 
-  return {
-    connectionState,
-    latestEvent,
-    chartData,
-    alerts,
-    isRecovered,
-    useMock,
-    toggleMock,
-  };
+  return { connState, latest, chartData, alerts, logs, recovered, useMock, toggleMock, stats };
 }
 
-// ── Helpers ──
-
-function formatTime(isoString) {
+function fmtTime(iso) {
   try {
-    const d = new Date(isoString);
+    const d = new Date(iso);
     if (isNaN(d.getTime())) return "--:--:--";
-    return d.toLocaleTimeString("en-US", {
-      hour12: false,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  } catch {
-    return "--:--:--";
-  }
+    return d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch { return "--:--:--"; }
 }
