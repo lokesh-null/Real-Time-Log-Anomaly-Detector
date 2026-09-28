@@ -19,8 +19,8 @@ ABSOLUTE_HIGH = 0.30
 ABSOLUTE_WARNING = 0.15
 
 WARNING_PERSISTENCE = 1
-HIGH_PERSISTENCE = 2
-CRITICAL_PERSISTENCE = 2
+HIGH_PERSISTENCE = 1
+CRITICAL_PERSISTENCE = 1
 RECOVERY_PERSISTENCE = 2
 
 class AnomalyDetector:
@@ -192,17 +192,27 @@ class AnomalyDetector:
         return score, z_score
 
     def _determine_raw_severity(self, composite_score, rate_60s, rate_10s, warmed_up):
-        if not warmed_up or self.total_logs_60s < 10:
-            return "NORMAL"
-            
-        # Using composite score + absolute fallbacks
-        if composite_score >= 80 or rate_60s >= ABSOLUTE_CRITICAL:
+        # Immediate absolute error threshold triggers (works during live demos & cold start)
+        if rate_60s >= ABSOLUTE_CRITICAL or (self.error_logs_10s >= 2 and rate_10s >= 0.50):
             return "CRITICAL"
             
-        if composite_score >= 50 or rate_60s >= ABSOLUTE_HIGH or (rate_10s >= 0.60 and self.total_logs_10s >= 5):
+        if rate_60s >= ABSOLUTE_HIGH or (self.error_logs_10s >= 1 and rate_10s >= 0.35):
             return "HIGH"
             
-        if composite_score >= 30 or rate_60s >= ABSOLUTE_WARNING:
+        if rate_60s >= ABSOLUTE_WARNING or (self.error_logs_60s >= 1 and self.total_logs_60s <= 5):
+            return "WARNING"
+
+        if not warmed_up or self.total_logs_60s < 5:
+            return "NORMAL" if self.error_logs_60s == 0 else "WARNING"
+            
+        # Using composite score + absolute fallbacks
+        if composite_score >= 80:
+            return "CRITICAL"
+            
+        if composite_score >= 50:
+            return "HIGH"
+            
+        if composite_score >= 30:
             return "WARNING"
             
         return "NORMAL"

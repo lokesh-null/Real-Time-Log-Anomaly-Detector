@@ -52,9 +52,10 @@ export function useDataStream() {
       const pt = { time: fmtTime(ev.timestamp), error_rate: +(ev.error_rate * 100).toFixed(1), baseline: +(ev.baseline * 100).toFixed(1) };
       setChartData((p) => { const n = [...p, pt]; return n.length > MAX_CHART ? n.slice(-MAX_CHART) : n; });
 
-      if (ev.is_anomaly || (prev && ["CRITICAL", "HIGH", "WARNING"].includes(prev) && ev.severity === "NORMAL")) {
+      if (ev.is_anomaly || ev.severity !== "NORMAL" || (prev && ["CRITICAL", "HIGH", "WARNING"].includes(prev) && ev.severity === "NORMAL")) {
         aidRef.current++;
-        const a = { id: aidRef.current, timestamp: ev.timestamp, severity: ev.is_anomaly ? ev.severity : "RECOVERED", message: ev.message, error_rate: ev.error_rate, deviation: ev.deviation };
+        const sev = ev.is_anomaly ? ev.severity : (ev.severity !== "NORMAL" ? ev.severity : "RECOVERED");
+        const a = { id: aidRef.current, timestamp: ev.timestamp, severity: sev, message: ev.message, error_rate: ev.error_rate, deviation: ev.deviation };
         setAlerts((p) => { const n = [a, ...p]; return n.length > MAX_ALERTS ? n.slice(0, MAX_ALERTS) : n; });
       }
     } catch (e) {
