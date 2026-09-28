@@ -1,17 +1,20 @@
 import logging
+
 from backend.models import AnomalyResult
+from backend.aws import publish_alert
 
 logger = logging.getLogger(__name__)
 
+
 class AlertPublisher:
-    """
-    Adapter for Tejeshwar's AWS SNS alert publisher.
-    Currently uses a mock/no-op implementation.
-    """
     async def publish(self, result: AnomalyResult):
-        if result.is_anomaly:
-            try:
-                # To be replaced with real boto3 implementation
-                logger.info(f"Mock Alert Publisher: Publishing alert for severity {result.severity}")
-            except Exception as e:
-                logger.error(f"Alert publishing failed: {e}")
+        if not result.is_anomaly:
+            return
+
+        if result.severity not in {"HIGH", "CRITICAL"}:
+            return
+
+        try:
+            publish_alert(result)
+        except Exception as e:
+            logger.error("Alert publishing failed: %s", e)
