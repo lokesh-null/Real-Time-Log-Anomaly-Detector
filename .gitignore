@@ -5,3 +5,8 @@ __pycache__/
 venv/
 logs/
 .pytest_cache/
+nginx/
+nginx_dist/
+nginx_temp/
+nginx_server/
+

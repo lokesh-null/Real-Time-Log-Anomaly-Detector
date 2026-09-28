@@ -3,6 +3,7 @@
 import StatusCard from "../components/StatusCard";
 import ErrorRateChart from "../components/ErrorRateChart";
 import AlertFeed from "../components/AlertFeed";
+import ScenarioController from "../components/ScenarioController";
 import { sevColor } from "../utils";
 
 export default function DashboardPage({ latest, chartData, alerts, recovered, useMock }) {
@@ -15,6 +16,9 @@ export default function DashboardPage({ latest, chartData, alerts, recovered, us
 
   return (
     <div className="page">
+      {/* Scenario & Chaos Bar */}
+      <ScenarioController />
+
       {/* Banners */}
       {useMock && <div className="banner banner--mock">⚡ Mock mode — simulated data active</div>}
       {recovered && (
@@ -29,6 +33,7 @@ export default function DashboardPage({ latest, chartData, alerts, recovered, us
       )}
 
       <div className="dash-grid">
+
         {/* Metrics row */}
         <div className="dash-metrics">
           <StatusCard label="Error Rate" value={er} sub={has ? `${latest.errors} / ${latest.total_logs}` : "—"} colorClass={has && latest.error_rate > 0.15 ? sc : ""} />
